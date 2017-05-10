@@ -1,0 +1,43 @@
+#!/usr/bin/env python
+# -*- encoding: utf-8 -*-
+# Created on 2017-03-28 02:48:04
+# Project: hudong_renwu_yulemingxing
+
+from pyspider.libs.base_handler import *
+
+import urllib
+import urllib2
+
+
+class Handler(BaseHandler):
+    crawl_config = {
+    }
+
+    @every(minutes=24 * 60)
+    def on_start(self):
+        total_num = 100
+        for i in range(1,total_num+1):
+            self.crawl('http://fenlei.baike.com/ajaxcategorythemenextpage.do?category_name=%E6%AD%8C%E6%89%8B&topNum=0&page_now='+str(i)+'&totalPage='+str(total_num), callback=self.index_page)
+
+    @config(age=1 * 24 * 60 * 60)
+    def index_page(self, response):
+        for each in response.doc('a[href^="http://www.baike.com/wiki/"]').items():
+            self.crawl(each.attr.href, callback=self.detail_page)
+
+    @config(priority=2)
+    def detail_page(self, response):
+        url = 'http://www.hobot.com/renwu'
+        title = response.doc('#primary > div.w-990 > div.l.w-640 > div.content-h1 > h1').text().encode('utf-8')
+        ors = []
+        for each in response.doc('#datamodule > div.module.zoom > table > tr').items():
+            for td in each('td').items():
+                r = td('strong').text().replace(u'：',u'').replace(u' ',u'').encode('utf-8')
+                o = td('span').text().strip(u'\n').encode('utf-8')
+                if r and o:
+                    ors.append({'relation':r,'object':o})
+                    requrl  = "http://10.9.1.172:3030/renwustore"
+                    data = {'update':'INSERT DATA {<'+url+'#'+title+'> '+'<'+url+'#'+r+'> "'+o+'"}'}
+                    d = urllib.urlencode(data)
+                    req = urllib2.Request(url=requrl,data=d)
+                    url_data = urllib2.urlopen(req)
+        return {'subject':title,'ors':ors}
